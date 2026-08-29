@@ -4638,3 +4638,162 @@ function downloadText(
    ========================================================= */
 
 home();
+
+/* =========================================================
+   PRINCIPAL TEACHER APPROVAL - DEMO FIX
+   ========================================================= */
+
+document.addEventListener("click", function (e) {
+  const target = e.target.closest("button");
+  if (!target) return;
+
+  const buttonText = target.textContent.trim().toLowerCase();
+
+  // Only handle Approve / Reject buttons
+  if (buttonText !== "approve" && buttonText !== "reject") return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Find the teacher row
+  const row = target.closest("tr");
+
+  if (!row) {
+    alert("Teacher record could not be found.");
+    return;
+  }
+
+  const teacherName =
+    row.querySelector("td:first-child")?.innerText
+      ?.split("\n")[0]
+      ?.trim() || "Teacher";
+
+  if (buttonText === "approve") {
+    // Save approved teacher
+    const approvedTeachers =
+      JSON.parse(localStorage.getItem("gurusetu_approved_teachers") || "[]");
+
+    if (!approvedTeachers.includes(teacherName)) {
+      approvedTeachers.push(teacherName);
+    }
+
+    localStorage.setItem(
+      "gurusetu_approved_teachers",
+      JSON.stringify(approvedTeachers)
+    );
+
+    // Remove from pending list
+    row.remove();
+
+    updateTeacherApprovalCounts();
+
+    showDemoMessage(
+      `${teacherName} has been approved successfully.`,
+      "success"
+    );
+
+  } else if (buttonText === "reject") {
+
+    const rejectedTeachers =
+      JSON.parse(localStorage.getItem("gurusetu_rejected_teachers") || "[]");
+
+    if (!rejectedTeachers.includes(teacherName)) {
+      rejectedTeachers.push(teacherName);
+    }
+
+    localStorage.setItem(
+      "gurusetu_rejected_teachers",
+      JSON.stringify(rejectedTeachers)
+    );
+
+    // Remove from pending list
+    row.remove();
+
+    updateTeacherApprovalCounts();
+
+    showDemoMessage(
+      `${teacherName} has been rejected.`,
+      "error"
+    );
+  }
+});
+
+
+/* ---------------------------------------------------------
+   UPDATE DASHBOARD COUNTERS
+   --------------------------------------------------------- */
+
+function updateTeacherApprovalCounts() {
+
+  const pendingRows = document.querySelectorAll(
+    "table tbody tr"
+  );
+
+  const pendingCount = [...pendingRows].filter(row => {
+    return row.querySelector("button");
+  }).length;
+
+  const approvedTeachers =
+    JSON.parse(
+      localStorage.getItem("gurusetu_approved_teachers") || "[]"
+    );
+
+  // Find dashboard cards by text
+  document.querySelectorAll("*").forEach(el => {
+
+    if (el.children.length > 0) return;
+
+    const text = el.textContent.trim();
+
+    if (text === "Pending Teachers") {
+      const number = el.previousElementSibling;
+      if (number) number.textContent = pendingCount;
+    }
+
+    if (text === "Approved Teachers") {
+      const number = el.previousElementSibling;
+      if (number) number.textContent = approvedTeachers.length;
+    }
+  });
+}
+
+
+/* ---------------------------------------------------------
+   DEMO NOTIFICATION
+   --------------------------------------------------------- */
+
+function showDemoMessage(message, type) {
+
+  const old = document.querySelector(".gurusetu-demo-message");
+  if (old) old.remove();
+
+  const box = document.createElement("div");
+
+  box.className = "gurusetu-demo-message";
+
+  box.textContent = message;
+
+  box.style.position = "fixed";
+  box.style.top = "90px";
+  box.style.right = "30px";
+  box.style.zIndex = "99999";
+  box.style.padding = "16px 22px";
+  box.style.borderRadius = "12px";
+  box.style.fontWeight = "600";
+  box.style.fontSize = "15px";
+  box.style.boxShadow = "0 10px 30px rgba(0,0,0,.15)";
+  box.style.background =
+    type === "success" ? "#e8f7ee" : "#fff0f0";
+  box.style.color =
+    type === "success" ? "#176b3a" : "#a22b2b";
+  box.style.border =
+    type === "success"
+      ? "1px solid #9ad5b2"
+      : "1px solid #efaaaa";
+
+  document.body.appendChild(box);
+
+  setTimeout(() => {
+    box.remove();
+  }, 3000);
+}
