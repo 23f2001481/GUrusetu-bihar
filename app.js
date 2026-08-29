@@ -88,7 +88,7 @@ app.innerHTML=nav()+`<div class="auth-wrap"><div class="auth"><div class="eyebro
 function submitPrincipal(){
 const name=document.getElementById("pn").value.trim(),mobile=document.getElementById("pm").value.trim(),email=document.getElementById("pe").value.trim(),password=document.getElementById("pp").value;
 if(!name||!mobile||!email||!password)return alert("Please fill all required fields: Name, Mobile, Email and Password.");
-if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return alert("Please enter a valid email address.");
+if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return alert("Please enter a valid email address.");
 const principals=JSON.parse(localStorage.getItem("principals")||"[]");
 if(principals.some(p=>p.school===state.selectedSchool.name && p.status!=="REJECTED"))return alert("This school already has a pending/approved Principal in this demo.");
 const p={id:Date.now(),name,mobile,email,school:state.selectedSchool.name,district:state.selectedDistrict,joining:document.getElementById("pj").value,experience:document.getElementById("pw").value,status:"PENDING_ADMIN_APPROVAL",password};
