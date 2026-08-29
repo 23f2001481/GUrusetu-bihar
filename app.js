@@ -2502,34 +2502,8 @@ function doTeacherLogin() {
       .getElementById("tp")
       .value;
 
-  /* DEMO TEACHER */
-
-  if (
-    e === "teacher@gurusetu.local" &&
-    pw === "teacher123"
-  ) {
-
-    state.role = "TEACHER";
-
-    state.teacher = {
-
-      name: "Demo Science Teacher",
-
-      email: e,
-
-      school: "Demo School",
-
-      district: "Jehanabad",
-
-      subject: "Science",
-
-      classes: "8–12"
-
-    };
-
-    teacherDashboard();
-
-    return;
+  if (!e || !pw) {
+    return alert("Please enter email and password.");
   }
 
   const ts =
@@ -2540,7 +2514,7 @@ function doTeacherLogin() {
   const t =
     ts.find(
       x =>
-        x.email.toLowerCase() ===
+        String(x.email || "").toLowerCase() ===
         e.toLowerCase()
     );
 
@@ -2550,23 +2524,26 @@ function doTeacherLogin() {
     );
   }
 
-  if (
-    t.status !== "APPROVED"
-  ) {
+  if (t.status === "REJECTED") {
+    return alert(
+      t.reason
+        ? `Your registration was rejected.\\n\\nReason: ${t.reason}`
+        : "Your Teacher registration was rejected."
+    );
+  }
+
+  if (t.status !== "APPROVED") {
     return alert(
       "Your Teacher registration is awaiting Principal approval."
     );
   }
 
   if (t.password !== pw) {
-    return alert(
-      "Incorrect password."
-    );
+    return alert("Incorrect password.");
   }
 
   state.role = "TEACHER";
   state.teacher = t;
-
   teacherDashboard();
 }
 
@@ -4637,163 +4614,168 @@ function downloadText(
    START APP
    ========================================================= */
 
-home();
+/*
+   One-time migration for the previous demo approval bug.
+   The old version stored approved teacher names in a separate
+   localStorage key. Convert those records to the real teacher
+   status so existing demo registrations do not get stuck.
+*/
 
-/* =========================================================
-   PRINCIPAL TEACHER APPROVAL - DEMO FIX
-   ========================================================= */
+function migrateTeacherApprovals() {
 
-document.addEventListener("click", function (e) {
-  const target = e.target.closest("button");
-  if (!target) return;
-
-  const buttonText = target.textContent.trim().toLowerCase();
-
-  // Only handle Approve / Reject buttons
-  if (buttonText !== "approve" && buttonText !== "reject") return;
-
-  e.preventDefault();
-  e.stopPropagation();
-
-  // Find the teacher row
-  const row = target.closest("tr");
-
-  if (!row) {
-    alert("Teacher record could not be found.");
-    return;
-  }
-
-  const teacherName =
-    row.querySelector("td:first-child")?.innerText
-      ?.split("\n")[0]
-      ?.trim() || "Teacher";
-
-  if (buttonText === "approve") {
-    // Save approved teacher
-    const approvedTeachers =
-      JSON.parse(localStorage.getItem("gurusetu_approved_teachers") || "[]");
-
-    if (!approvedTeachers.includes(teacherName)) {
-      approvedTeachers.push(teacherName);
-    }
-
-    localStorage.setItem(
-      "gurusetu_approved_teachers",
-      JSON.stringify(approvedTeachers)
+  let teachers =
+    JSON.parse(
+      localStorage.getItem("teachers") || "[]"
     );
 
-    // Remove from pending list
-    row.remove();
-
-    updateTeacherApprovalCounts();
-
-    showDemoMessage(
-      `${teacherName} has been approved successfully.`,
-      "success"
-    );
-
-  } else if (buttonText === "reject") {
-
-    const rejectedTeachers =
-      JSON.parse(localStorage.getItem("gurusetu_rejected_teachers") || "[]");
-
-    if (!rejectedTeachers.includes(teacherName)) {
-      rejectedTeachers.push(teacherName);
-    }
-
-    localStorage.setItem(
-      "gurusetu_rejected_teachers",
-      JSON.stringify(rejectedTeachers)
-    );
-
-    // Remove from pending list
-    row.remove();
-
-    updateTeacherApprovalCounts();
-
-    showDemoMessage(
-      `${teacherName} has been rejected.`,
-      "error"
-    );
-  }
-});
-
-
-/* ---------------------------------------------------------
-   UPDATE DASHBOARD COUNTERS
-   --------------------------------------------------------- */
-
-function updateTeacherApprovalCounts() {
-
-  const pendingRows = document.querySelectorAll(
-    "table tbody tr"
-  );
-
-  const pendingCount = [...pendingRows].filter(row => {
-    return row.querySelector("button");
-  }).length;
-
-  const approvedTeachers =
+  const oldApproved =
     JSON.parse(
       localStorage.getItem("gurusetu_approved_teachers") || "[]"
     );
 
-  // Find dashboard cards by text
-  document.querySelectorAll("*").forEach(el => {
+  if (!Array.isArray(teachers)) {
+    teachers = [];
+  }
 
-    if (el.children.length > 0) return;
+  if (Array.isArray(oldApproved) && oldApproved.length) {
 
-    const text = el.textContent.trim();
+    teachers = teachers.map(t => {
 
-    if (text === "Pending Teachers") {
-      const number = el.previousElementSibling;
-      if (number) number.textContent = pendingCount;
-    }
+      if (
+        oldApproved.some(
+          name =>
+            String(name).trim().toLowerCase() ===
+            String(t.name || "").trim().toLowerCase()
+        )
+      ) {
+        return {
+          ...t,
+          status: "APPROVED",
+          approvedAt:
+            t.approvedAt || new Date().toISOString()
+        };
+      }
 
-    if (text === "Approved Teachers") {
-      const number = el.previousElementSibling;
-      if (number) number.textContent = approvedTeachers.length;
-    }
-  });
+      return t;
+    });
+
+    localStorage.setItem(
+      "teachers",
+      JSON.stringify(teachers)
+    );
+  }
 }
 
 
-/* ---------------------------------------------------------
-   DEMO NOTIFICATION
-   --------------------------------------------------------- */
+migrateTeacherApprovals();
+home();
 
-function showDemoMessage(message, type) {
 
-  const old = document.querySelector(".gurusetu-demo-message");
-  if (old) old.remove();
+/* =========================================================
+   PRINCIPAL TEACHER APPROVAL — FIXED
+   ========================================================= */
 
-  const box = document.createElement("div");
+function approveTeacher(id) {
 
-  box.className = "gurusetu-demo-message";
+  let teachers =
+    JSON.parse(
+      localStorage.getItem("teachers") || "[]"
+    );
 
-  box.textContent = message;
+  if (!Array.isArray(teachers)) {
+    teachers = [];
+  }
 
-  box.style.position = "fixed";
-  box.style.top = "90px";
-  box.style.right = "30px";
-  box.style.zIndex = "99999";
-  box.style.padding = "16px 22px";
-  box.style.borderRadius = "12px";
-  box.style.fontWeight = "600";
-  box.style.fontSize = "15px";
-  box.style.boxShadow = "0 10px 30px rgba(0,0,0,.15)";
-  box.style.background =
-    type === "success" ? "#e8f7ee" : "#fff0f0";
-  box.style.color =
-    type === "success" ? "#176b3a" : "#a22b2b";
-  box.style.border =
-    type === "success"
-      ? "1px solid #9ad5b2"
-      : "1px solid #efaaaa";
+  const index = teachers.findIndex(
+    t => String(t.id) === String(id)
+  );
 
-  document.body.appendChild(box);
+  if (index === -1) {
+    return alert("Teacher record not found.");
+  }
 
-  setTimeout(() => {
-    box.remove();
-  }, 3000);
+  const teacher = teachers[index];
+
+  if (teacher.status === "APPROVED") {
+    return alert(`${teacher.name} is already approved.`);
+  }
+
+  teachers[index] = {
+    ...teacher,
+    status: "APPROVED",
+    approvedAt: new Date().toISOString(),
+    reason: ""
+  };
+
+  localStorage.setItem(
+    "teachers",
+    JSON.stringify(teachers)
+  );
+
+  if (
+    state.teacher &&
+    String(state.teacher.id) === String(id)
+  ) {
+    state.teacher = teachers[index];
+  }
+
+  alert(
+    `${teacher.name} has been approved successfully.`
+  );
+
+  principalDashboard();
+}
+
+
+/* =========================================================
+   PRINCIPAL TEACHER REJECTION — FIXED
+   ========================================================= */
+
+function rejectTeacher(id) {
+
+  const reason = prompt(
+    "Reason for rejection:",
+    "Please provide additional verification."
+  );
+
+  if (reason === null) {
+    return;
+  }
+
+  let teachers =
+    JSON.parse(
+      localStorage.getItem("teachers") || "[]"
+    );
+
+  if (!Array.isArray(teachers)) {
+    teachers = [];
+  }
+
+  const index = teachers.findIndex(
+    t => String(t.id) === String(id)
+  );
+
+  if (index === -1) {
+    return alert("Teacher record not found.");
+  }
+
+  const teacher = teachers[index];
+
+  teachers[index] = {
+    ...teacher,
+    status: "REJECTED",
+    reason:
+      reason.trim() ||
+      "Registration rejected by Principal.",
+    rejectedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(
+    "teachers",
+    JSON.stringify(teachers)
+  );
+
+  alert(`${teacher.name} has been rejected.`);
+
+  principalDashboard();
 }
